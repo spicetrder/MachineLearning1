@@ -1,0 +1,85 @@
+---
+title: "Machine Learning Assignment"
+author: "JS Johnson"
+date: "August 2014"
+output: html_document
+---
+
+Executive Summary
+
+A model is created to predict which of five types of dumbbell motions were being performed from sensors worn by the person performing the exercise. The result demonstrates that sensor data can be used to identify human motion with high accuracy given a limited, finite number of motions.
+
+Background
+
+Data from four multi-sensor locations was collected from each of six participants while they were performing five "classes" of dumbbell curl exercises. Each sensor unit contained an accelerometer, gyroscope and a magnetometer. The sensors were located on the glove, armband, lumbar belt and dumbbell. The purpose of collecting the data was to determine whether the collected information could be used to determine whether the exercise was being performed correctly (classe A) or incorrectly (one of classe B - classe E). Participants were instructed on how to perform exercises in the five different classes as follows:
+
+classe A - performed correctly
+classe B - elbows thrown to front
+classe C - lifting dumbbell only halfway
+classe D - lowering dumbbell only halfway
+classe E - hips thrown to front
+
+Each participant performed ten repetitions of each classe. 
+
+Dataset and Analysis Preparation
+
+The dataset consisted of 19622 observations on 160 variable features. Review of the date/time variables shows that data were collected over two different days. These variables (time, date) were excluded from the analysis performed. Statistics were calculated over the duration of a participant's exercise set for each of the continuous sensor variable and appeared as features in the original data. These statistic features were excluded from the analysis because of their relative infrequency and confounding with other variable on which they were derived. Also excluded were fields such as record index and participant names because they were unrelated to the goal of determining exercise classe based on sensor data. Resulting from these exclusions was a dataset of 19622 observations with 53 remaining variable features. 
+
+
+
+Review of date/time shows data was collected on two days. All data processing and analysis were performed using the R statistical programming language and the R Studio programming environment.
+
+The analysis required the following R libraries
+```{r, echo=FALSE, message=FALSE}
+library(ggplot2)
+library(caret)
+library(randomForest)
+library(gdata)
+```
+
+
+Load and examine data:
+```{r, echo=TRUE}
+pml.testing <- read.csv("~/R/R Workspace/Machine Learning/pml-testing.csv")
+pml.training <- read.csv("~/R/R Workspace/Machine Learning/pml-training.csv")
+## Convert date format and show activity classe counts
+pml.training[,5] <- as.Date(pml.training[,5], "%m/%d/%Y %H:%M")
+pml.testing[,5] <- as.Date(pml.testing[,5], "%m/%d/%Y %H:%M")
+
+## Use only columns that are non-statistics
+pml.training.clean <- pml.training[,matchcols(pml.training, without=c("timestamp","avg", "total", "kurtosis", "skewness", "max", "min", "amplitude", "var", "stddev"), method = "or")]
+pml.testing.clean <- pml.testing[,matchcols(pml.testing, without=c("timestamp", "avg", "total", "kurtosis", "skewness", "max", "min", "amplitude", "var", "stddev"), method = "or")]
+inTrain <- createDataPartition(y=pml.training.clean$classe, p= 0.6, list=FALSE)
+training <- pml.training.clean[inTrain,-c(1,2,3)]
+validation <- pml.training.clean[-inTrain,-c(1,2,3)]
+```
+
+We used the R 'caret package' to fit a model on 4000 randomly selected records in the training dataset. The sample size was selected to minimize processing time and reduce over-fitting of the training set.
+
+```{r, echo=FALSE}
+set.seed(48576)
+
+train_idx <- sample(1:length(training$classe), 1000, replace = FALSE)
+train_sample <- training[train_idx,]
+modFit_rf <- train(classe~., data=train_sample, method="rf", prox=TRUE)
+```
+
+The random forest model measures were:
+
+```{r, echo=TRUE}
+modFit_rf
+pred_rf <- predict(modFit_rf, training)
+table(pred_rf,training$classe)
+```
+
+We applied the random forest model to the (independent) validation data set to evaluate it's performance prior to applying to the testing set which confirmed good accuracy.
+
+```{r, echo=TRUE}
+val_rf <- predict(modFit_rf, validation)
+table(val_rf,validation$classe)
+```
+
+The model was then fit to the set test for final evaluation. All twenty classes of the test set were correctly predicted
+
+test_rf <- predict(modFit_rf, pml.testing.clean)
+
